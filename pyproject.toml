@@ -1,0 +1,19 @@
+[project]
+name = "ndsi_fsc_calibration"
+version = "0.1.0"
+description = "Calibrate a linear model for Normalized Snow Index (NDSI) to Fractional Snow Cover (FSC) for moderate resolution sensors using Sentinel-2 as high resolution reference"
+authors = [
+    {name = "Nicola Imperatore", email = "nicola.imperatore@meteo.fr"},
+]
+dependencies = []
+requires-python = ">=3.10"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
