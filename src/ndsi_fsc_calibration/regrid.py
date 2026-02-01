@@ -17,10 +17,10 @@ from geospatial_grid.grid_database import PROJ4_MODIS
 from geospatial_grid.gsgrid import GSGrid
 from geospatial_grid.reprojections import reproject_using_grid
 from rasterio.enums import Resampling
-from utils import gdf_to_binary_mask, generate_xarray_compression_encodings
 
 from ndsi_fsc_calibration.snow_cover_products import NASA_CLASSES, S2_CLASSES
 from ndsi_fsc_calibration.utils import default_logger as logger
+from ndsi_fsc_calibration.utils import gdf_to_binary_mask, generate_xarray_compression_encodings
 
 
 def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GSGrid) -> xr.DataArray:
@@ -28,18 +28,15 @@ def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GSGrid) -> xr.DataA
 
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     s2_validity_mask = reproject_using_grid(
-        s2_dataset, output_grid=output_grid, resampling=Resampling.max, nodata=S2_CLASSES["nodata"][0]
+        s2_dataset, output_grid=output_grid, resampling_method=Resampling.max, nodata=S2_CLASSES["nodata"][0]
     )
 
     # Aggregate the dataset at 250 m
     s2_aggregated = reproject_using_grid(
         s2_dataset.astype(np.float32),
         output_grid=output_grid,
-        new_crs=output_grid.crs,
-        resampling=Resampling.average,
+        resampling_method=Resampling.average,
         nodata=S2_CLASSES["nodata"][0],
-        transform=output_grid.affine,
-        shape=output_grid.shape,
     )
 
     # Compose the mask
@@ -86,6 +83,8 @@ def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GSG
 class RegridBase:
     def __init__(self, data_folder: str, output_folder: str, output_grid: GSGrid, product_classes: Dict[str, int | range]):
         self.grid = output_grid
+        if not os.path.exists(output_folder):
+            os.mkdir(output_folder)
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.product_classes = product_classes
@@ -95,18 +94,18 @@ class RegridBase:
         pass
 
     @abc.abstractmethod
-    def get_daily_files(self, all_winter_year_files: List[str], date: datetime) -> List[str]:
+    def get_date_files(self, all_winter_year_files: List[str], date: datetime) -> List[str]:
         pass
 
     @abc.abstractmethod
-    def check_daily_files(self, day_files: List[str]) -> List[str]:
+    def check_date_files(self, date_files: List[str]) -> List[str]:
         pass
 
     @abc.abstractmethod
-    def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
+    def create_spatial_composite(self, date_files: List[str]) -> xr.Dataset:
         pass
 
-    def check_scf_not_empty(self, daily_composite: xr.Dataset) -> None:
+    def scf_empty(self, daily_composite: xr.Dataset) -> None:
         snow_cover = (
             daily_composite.data_vars["snow_cover_fraction"]
             if "snow_cover_fraction" in daily_composite.data_vars
@@ -116,18 +115,18 @@ class RegridBase:
             snow_cover.where(snow_cover <= self.product_classes["clouds"]).count()
             == snow_cover.where(snow_cover == self.product_classes["clouds"]).count()
         ):
-            return False
-        else:
             return True
+        else:
+            return False
 
     def low_values_screen(self, daily_composite: xr.Dataset, thresholds: Dict[str, float]) -> xr.Dataset:
         for key, value in thresholds.items():
             daily_composite.data_vars[key][:] = daily_composite.data_vars[key].where(daily_composite.data_vars[key] > value, 0)
         return daily_composite
 
-    def export_daily_data(self, date: datetime, daily_data: xr.Dataset):
+    def export_date_data(self, date: datetime, date_data: xr.Dataset):
         out_path = f"{str(self.output_folder)}/{date.strftime('%Y%m%d')}.nc"
-        daily_composite = daily_data.assign_coords(dict(time=[date]))
+        daily_composite = date_data.assign_coords(dict(time=[date]))
         daily_composite.to_netcdf(out_path)
 
     def export_time_series(self):
@@ -147,19 +146,18 @@ class RegridBase:
         low_value_thresholds: Dict[str, float] | None = None,
     ):
         files = self.get_all_files()
-
         period = pd.date_range(start=start_date, end=end_date)
         for date in period:
             logger.info(f"Processing date {date}")
-            day_files = self.get_daily_files(files, date=date)
 
-            day_files = self.check_daily_files(day_files=day_files)
+            day_files = self.get_date_files(files, date=date)
+
+            day_files = self.check_date_files(date_files=day_files)
 
             if len(day_files) == 0:
                 logger.info(f"Skip day {date} because 0 files were found on this date")
                 continue
-            daily_composite = self.create_spatial_composite(day_files=day_files)
-
+            daily_composite = self.create_spatial_composite(date_files=day_files)
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
 
@@ -173,14 +171,14 @@ class RegridBase:
 
                 for dv in daily_composite.data_vars.values():
                     dv.rio.write_nodata(self.product_classes["fill"][0], inplace=True)
-
-            if not self.check_scf_not_empty(daily_composite):
+            daily_composite.to_netcdf("test_ndsi_snoc_cvoer.nc")
+            if self.scf_empty(daily_composite):
                 logger.info(f"Skip day {date} because only clouds are present on this date.")
                 continue
             if low_value_thresholds is not None:
                 daily_composite = self.low_values_screen(daily_composite=daily_composite, thresholds=low_value_thresholds)
 
-            self.export_daily_data(day=date, daily_data=daily_composite)
+            self.export_date_data(date=date, date_data=daily_composite)
         self.export_time_series()
 
 
@@ -190,33 +188,31 @@ class S2Regrid(RegridBase):
             output_grid=output_grid, data_folder=data_folder, output_folder=output_folder, product_classes=S2_CLASSES
         )
 
-    def check_daily_files(self, input_tif_files: List[str]) -> List[str]:
-        for day_file in input_tif_files:
+    def check_date_files(self, date_files: List[str]) -> List[str]:
+        for day_file in date_files:
             try:
                 xr.open_dataset(day_file).data_vars["band_data"].values
             except (OSError, rasterio.errors.RasterioIOError, rasterio._err.CPLE_AppDefinedError):
                 logger.info(f"Could not open file {day_file}. Removing it from processing")
-                input_tif_files.remove(day_file)
+                date_files.remove(day_file)
                 continue
-        return input_tif_files
+        return date_files
 
-    def get_daily_files(self, all_winter_year_files: List[str], day: datetime):
-        return [file for file in all_winter_year_files if day.strftime("%Y%m%d") in file]
+    def get_date_files(self, all_winter_year_files: List[str], date: datetime):
+        return [file for file in all_winter_year_files if date.strftime("%Y%m%d") in file]
 
 
-class S2TheiaSCARegrid(S2Regrid):
-    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str, fsc_thresh: int | None = None):
-        super().__init__(output_grid, data_folder, output_folder)
+class S2TheiaRegrid(S2Regrid):
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str, fsc_thresh: int = 51):
+        super().__init__(output_grid=output_grid, data_folder=data_folder, output_folder=output_folder)
         self.fsc_thresh = fsc_thresh
 
-    def get_all_files(
-        self,
-    ) -> List[str]:
+    def get_all_files(self) -> List[str]:
         return glob(str(Path(self.data_folder).joinpath("LIS_S2-SNOW-FSC_*tif")))
 
-    def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
+    def create_spatial_composite(self, date_files: List[str]) -> xr.Dataset:
         day_data_array = xr.DataArray(S2_CLASSES["nodata"][0], coords=self.grid.xarray_coords).astype("u1")
-        for filepath in day_files:
+        for filepath in date_files:
             logger.info(f"Processing product {Path(filepath).name}")
             s2_image = rioxarray.open_rasterio(filepath)
             s2_image = s2_image.sel(band=1).drop_vars("band")
@@ -225,32 +221,34 @@ class S2TheiaSCARegrid(S2Regrid):
             s2_image = s2_image.where(1 - high_fsc_mask, 100)
             s2_image = s2_image.where(1 - low_fsc_mask, 0)
             s2_resampled_image = resample_s2_to_grid(s2_dataset=s2_image, output_grid=self.grid)
-            day_data_array = day_data_array.where(day_data_array != S2_CLASSES["nodata"][0], s2_resampled_image)
+            day_data_array = day_data_array.where(day_data_array != S2_CLASSES["nodata"][0], s2_resampled_image.values)
         day_dataset = xr.Dataset({"snow_cover_fraction": day_data_array})
         return georef_netcdf_rioxarray(day_dataset, crs=self.grid.crs)
 
 
 class V10Regrid(RegridBase):
     def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
-        super().__init__(output_grid, data_folder, output_folder, product_classes=NASA_CLASSES)
+        super().__init__(
+            output_grid=output_grid, data_folder=data_folder, output_folder=output_folder, product_classes=NASA_CLASSES
+        )
 
-    def get_all(self) -> List[str]:
-        return glob(str(Path(self.data_folder).joinpath("V*10A1*.nc")))
+    def get_all_files(self) -> List[str]:
+        return glob(str(Path(self.data_folder).joinpath("V*10A1*.h5")))
 
-    def get_daily_files(self, all_winter_year_files: List[str], day: datetime) -> List[str]:
-        return [file for file in all_winter_year_files if day.strftime("A%Y%j") in file]
+    def get_date_files(self, all_winter_year_files: List[str], date: datetime) -> List[str]:
+        return [file for file in all_winter_year_files if date.strftime("A%Y%j") in file]
 
-    def check_daily_files(self, day_files: List[str]) -> List[str]:
-        for day_file in day_files:
+    def check_date_files(self, date_files: List[str]) -> List[str]:
+        for date_file in date_files:
             try:
-                xr.open_dataset(day_file, group="HDFEOS/GRIDS/VIIRS_Grid_IMG_2D/Data Fields", engine="netcdf4").data_vars[
+                xr.open_dataset(date_file, group="HDFEOS/GRIDS/VIIRS_Grid_IMG_2D/Data Fields", engine="netcdf4").data_vars[
                     "NDSI_Snow_Cover"
                 ].values
             except OSError:
-                logger.info(f"Could not open file {day_file}. Removing it from processing")
-                day_files.remove(day_file)
+                logger.info(f"Could not open file {date_file}. Removing it from processing")
+                date_files.remove(date_file)
                 continue
-        return day_files
+        return date_files
 
     def create_spatial_l3_nasa_viirs_composite(self, daily_snow_cover_files: List[str]) -> xr.DataArray:
         day_data_arrays = []
@@ -284,10 +282,10 @@ class V10Regrid(RegridBase):
             .data_vars["NDSI_Snow_Cover"]
         ).rio.write_nodata(NASA_CLASSES["fill"][0])
 
-        return merged_day_dataset
+        return georef_netcdf_rioxarray(data_array=merged_day_dataset, crs=pyproj.CRS.from_proj4(PROJ4_MODIS))
 
-    def create_spatial_composite(self, day_files: List[str]) -> xr.Dataset:
-        daily_spatial_composite = self.create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files=day_files)
+    def create_spatial_composite(self, date_files: List[str]) -> xr.Dataset:
+        daily_spatial_composite = self.create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files=date_files)
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_snow_cover.attrs.pop("valid_range")
         out_dataset = xr.Dataset({"NDSI_Snow_Cover": nasa_snow_cover})
