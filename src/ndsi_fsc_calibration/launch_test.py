@@ -1,8 +1,9 @@
 from datetime import datetime
 
 from geospatial_grid.gsgrid import GSGrid
-from ndsi_fsc_calibration.regrid import S2TheiaRegrid, V10Regrid
 from pyproj import CRS
+
+from ndsi_fsc_calibration.regrid import S2TheiaRegrid, V10Regrid
 
 output_grid = GSGrid(
     x0=4.2099998999999997,
@@ -23,11 +24,11 @@ vnp10a1_regridder = V10Regrid(
 s2_regridder = S2TheiaRegrid(output_grid=output_grid, data_folder=f"{data_folder}/S2_THEIA", output_folder="output_folder/s2")
 
 
-vnp10a1_regridder.create_time_series(
-    roi_shapefile=area_of_interest_file,
-    start_date=start,
-    end_date=end,
-)
+# vnp10a1_regridder.create_time_series(
+#     roi_shapefile=area_of_interest_file,
+#     start_date=start,
+#     end_date=end,
+# )
 
 s2_regridder.create_time_series(
     roi_shapefile=area_of_interest_file,
