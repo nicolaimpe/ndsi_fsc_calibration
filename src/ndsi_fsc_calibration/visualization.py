@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 import xarray as xr
 from matplotlib import cm, colors
@@ -8,8 +10,8 @@ from sklearn.linear_model import LinearRegression
 
 
 def compute_correlation_coefficient_from_weights(weights: xr.DataArray) -> float:
-    i = np.arange(weights.sizes["y"])  # X values
-    j = np.arange(weights.sizes["x"])  # Y values
+    i = np.arange(weights.sizes["ndsi"])  # X values
+    j = np.arange(weights.sizes["fsc"])  # Y values
 
     w = weights.values
 
@@ -27,7 +29,7 @@ def compute_correlation_coefficient_from_weights(weights: xr.DataArray) -> float
 
 
 def fit_regression(data_to_fit: xr.DataArray):
-    xx, yy = np.meshgrid(data_to_fit.coords["x"].values, data_to_fit.coords["y"].values)
+    xx, yy = np.meshgrid(data_to_fit.coords["ndsi"].values, data_to_fit.coords["fsc"].values)
     model_x_data = xx.reshape((-1, 1))
     model_y_data = yy.reshape((-1, 1))
     weights = data_to_fit.values.ravel()
@@ -43,17 +45,24 @@ def salomonson_appel(ndsi):
     return 1.45 * ndsi - 0.01
 
 
-def fancy_scatter_plot_with_fit(data_to_plt: xr.DataArray, ax: Axes, perc_min: float = 0.2, perc_max: float = 0.9):
-    data_to_plt = data_to_plt.transpose("y", "x")
+def scatter_plot_with_fit(
+    data_to_plt: xr.DataArray,
+    eval_prod_name: str,
+    fig: Figure,
+    ax: Axes,
+    quantile_min: float = 0.2,
+    quantile_max: float = 0.9,
+) -> Tuple[Figure, Axes]:
+    data_to_plt = data_to_plt.transpose("ndsi", "fsc")
 
     coeff_slope_ndsi, intercept_ndsi, score = fit_regression(data_to_plt)
     # Invert model to draw regression
     coeff_slope = 1 / coeff_slope_ndsi
     intercept = -intercept_ndsi
-    distr_min, distr_max = np.quantile(data_to_plt, perc_min), np.quantile(data_to_plt, perc_max)
+    distr_min, distr_max = np.quantile(data_to_plt, quantile_min), np.quantile(data_to_plt, quantile_max)
     ax.pcolormesh(
-        data_to_plt.coords["x"].values,
-        data_to_plt.coords["y"].values,
+        data_to_plt.coords["fsc"].values,
+        data_to_plt.coords["ndsi"].values,
         data_to_plt,
         norm=colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max, clip=True),
         cmap=cm.bone,
@@ -69,11 +78,16 @@ def fancy_scatter_plot_with_fit(data_to_plt: xr.DataArray, ax: Axes, perc_min: f
         color="chocolate",
         label=f"Linear fit slope={float(coeff_slope):.2f},intercept={float(intercept):.2f}, R²={score:.2f}, r={pearson_corr_coeff:.2f} ",
     )
-    xax = data_to_plt.coords["x"].values
+    xax = data_to_plt.coords["fsc"].values
     ax.plot(xax, salomonson_appel(xax), color="chocolate", linewidth=1.5, label="(Salomonson and Appel, 2006)")
 
     ax.grid(False)
     ax.legend(loc="lower center", draggable=True)
 
     ax.set_ylabel("S2 FSC [%]")
-    ax.set_xlabel("VIIRS NDSI [%]")
+    ax.set_xlabel(f"{eval_prod_name} NDSI [%]")
+    ax.set_ylim(10, 95)
+    ax.set_xlim(0, 100)
+    ax.set_facecolor("gray")
+
+    return fig, ax

@@ -1,3 +1,5 @@
+import xarray as xr
+
 NASA_CLASSES = {
     "snow_cover": range(1, 101),
     "no_snow": (0,),

@@ -1,5 +1,6 @@
 import abc
 import os
+import shutil
 from datetime import datetime
 from glob import glob
 from pathlib import Path
@@ -130,13 +131,17 @@ class RegridBase:
         daily_composite.to_netcdf(out_path)
 
     def export_time_series(self):
+        out_path = f"{self.output_folder}/regridded.nc"
+        if os.path.exists(out_path):
+            logger.info(f"Removing existing {out_path} and exporting current data.")
+            os.remove(out_path)
         out_tmp_paths = glob(f"{str(self.output_folder)}/*.nc")
         time_series = xr.open_mfdataset(out_tmp_paths, mask_and_scale=False)
         encodings = generate_xarray_compression_encodings(time_series)
-        out_path = f"{self.output_folder}/regridded.nc"
         logger.info(f"Exporting to {out_path}")
         time_series.to_netcdf(out_path, encoding=encodings)
         [os.remove(file) for file in out_tmp_paths]
+        return time_series
 
     def create_time_series(
         self,
@@ -171,7 +176,7 @@ class RegridBase:
 
                 for dv in daily_composite.data_vars.values():
                     dv.rio.write_nodata(self.product_classes["fill"][0], inplace=True)
-            daily_composite.to_netcdf("test_ndsi_snoc_cvoer.nc")
+
             if self.scf_empty(daily_composite):
                 logger.info(f"Skip day {date} because only clouds are present on this date.")
                 continue
@@ -179,7 +184,7 @@ class RegridBase:
                 daily_composite = self.low_values_screen(daily_composite=daily_composite, thresholds=low_value_thresholds)
 
             self.export_date_data(date=date, date_data=daily_composite)
-        self.export_time_series()
+        return self.export_time_series()
 
 
 class S2Regrid(RegridBase):
