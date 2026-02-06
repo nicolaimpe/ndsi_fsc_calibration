@@ -1,0 +1,8 @@
+crs: +proj=longlat +datum=WGS84 +no_defs +type=crs
+height: 1200
+resolution:
+- 0.003374578177758
+- 0.0033740359897170007
+width: 1000
+x0: 4.2099999
+y0: 46.556535227668746
