@@ -3,12 +3,10 @@ import re
 import numpy as np
 import pyproj
 import xarray as xr
-from affine import Affine
 from geospatial_grid.georeferencing import georef_netcdf_rioxarray
 from geospatial_grid.grid_database import PROJ4_MODIS
 from geospatial_grid.gsgrid import GSGrid
 from pyhdf.SD import SD, SDC
-from pyproj import CRS
 
 NASA_CLASSES = {
     "snow_cover": range(1, 101),

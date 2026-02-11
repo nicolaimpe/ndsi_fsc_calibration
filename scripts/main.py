@@ -163,7 +163,7 @@ if __name__ == "__main__":
         quantile_min=0.2,
     )
 
-    fig.patch.set_alpha(0.0)
+    # fig.patch.set_alpha(0.0)
     logger.info(f"Exporting to {args.output_folder}/scatter_plot.png")
-    fig.savefig(f"{args.output_folder}/scatter_plot.png", format="png", dpi=600)
+    fig.savefig(f"{args.output_folder}/plots/scatter_plot.png", format="png", dpi=600)
     plt.show()

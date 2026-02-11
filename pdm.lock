@@ -5,7 +5,7 @@
 groups = ["default"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:f96f7a2c0f0bf0ca66b445cfb0fa4b8957a6d389e2603180089e48ec99cf7c94"
+content_hash = "sha256:dc7b73d8eb3f2451a8cd48cb72d4e761672b296488c5d130b7238ccdb88e28eb"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -499,6 +499,17 @@ files = [
 ]
 
 [[package]]
+name = "decorator"
+version = "5.2.1"
+requires_python = ">=3.8"
+summary = "Decorators for Humans"
+groups = ["default"]
+files = [
+    {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
+    {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
+]
+
+[[package]]
 name = "earthaccess"
 version = "0.16.0"
 requires_python = ">=3.11"
@@ -637,16 +648,6 @@ groups = ["default"]
 files = [
     {file = "fsspec-2026.2.0-py3-none-any.whl", hash = "sha256:98de475b5cb3bd66bedd5c4679e87b4fdfe1a3bf4d707b151b3c07e58c9a2437"},
     {file = "fsspec-2026.2.0.tar.gz", hash = "sha256:6544e34b16869f5aacd5b90bdf1a71acb37792ea3ddf6125ee69a22a53fb8bff"},
-]
-
-[[package]]
-name = "gdal"
-version = "3.12.2"
-requires_python = ">=3.8.0"
-summary = "GDAL: Geospatial Data Abstraction Library"
-groups = ["default"]
-files = [
-    {file = "gdal-3.12.2.tar.gz", hash = "sha256:a5afa8e55a19b296a004a15d38fe3ad60cc380f1f090e2aab5d35331008c970f"},
 ]
 
 [[package]]
@@ -1212,6 +1213,22 @@ files = [
 ]
 
 [[package]]
+name = "py-hydroweb"
+version = "1.1.0"
+requires_python = ">=3.8"
+summary = "Python API to search and download hydrological data from the hydroweb.next catalog"
+groups = ["default"]
+dependencies = [
+    "requests~=2.32.3",
+    "retry2~=0.9.5",
+    "tqdm~=4.66.5",
+]
+files = [
+    {file = "py_hydroweb-1.1.0-py3-none-any.whl", hash = "sha256:4b680cd5d1a25af144e8b5edd5d05b068d6998a879949b2a3790eb96069fe988"},
+    {file = "py_hydroweb-1.1.0.tar.gz", hash = "sha256:009542ef4a3fb8af50d1f6cc9b2ff9cc753c4bb10d8f9ed10ac2e5e3881c61ef"},
+]
+
+[[package]]
 name = "pyhdf"
 version = "0.11.6"
 summary = "Python interface to the NCSA HDF4 library"
@@ -1522,6 +1539,19 @@ files = [
 ]
 
 [[package]]
+name = "retry2"
+version = "0.9.5"
+requires_python = ">=2.6"
+summary = "Easy to use retry decorator."
+groups = ["default"]
+dependencies = [
+    "decorator>=3.4.2",
+]
+files = [
+    {file = "retry2-0.9.5-py2.py3-none-any.whl", hash = "sha256:f7fee13b1e15d0611c462910a6aa72a8919823988dd0412152bc3719c89a4e55"},
+]
+
+[[package]]
 name = "rioxarray"
 version = "0.19.0"
 requires_python = ">=3.10"
@@ -1797,17 +1827,16 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.67.3"
+version = "4.66.6"
 requires_python = ">=3.7"
 summary = "Fast, Extensible Progress Meter"
 groups = ["default"]
 dependencies = [
     "colorama; platform_system == \"Windows\"",
-    "importlib-metadata; python_version < \"3.8\"",
 ]
 files = [
-    {file = "tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf"},
-    {file = "tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb"},
+    {file = "tqdm-4.66.6-py3-none-any.whl", hash = "sha256:223e8b5359c2efc4b30555531f09e9f2f3589bcd7fdd389271191031b49b7a63"},
+    {file = "tqdm-4.66.6.tar.gz", hash = "sha256:4bdd694238bef1485ce839d67967ab50af8f9272aab687c0d7702a01da0be090"},
 ]
 
 [[package]]
@@ -1827,7 +1856,7 @@ version = "2025.3"
 requires_python = ">=2"
 summary = "Provider of IANA time zone data"
 groups = ["default"]
-marker = "sys_platform == \"win32\" or sys_platform == \"emscripten\""
+marker = "sys_platform == \"emscripten\" or sys_platform == \"win32\""
 files = [
     {file = "tzdata-2025.3-py2.py3-none-any.whl", hash = "sha256:06a47e5700f3081aab02b2e513160914ff0694bce9947d6b76ebd6bf57cfc5d1"},
     {file = "tzdata-2025.3.tar.gz", hash = "sha256:de39c2ca5dc7b0344f2eba86f49d614019d29f060fc4ebc8a417896a620b56a7"},
