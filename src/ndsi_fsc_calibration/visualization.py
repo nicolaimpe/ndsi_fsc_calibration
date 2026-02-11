@@ -60,13 +60,14 @@ def scatter_plot_with_fit(
     coeff_slope = 1 / coeff_slope_ndsi
     intercept = -intercept_ndsi
     distr_min, distr_max = np.quantile(data_to_plt, quantile_min), np.quantile(data_to_plt, quantile_max)
+
     # Create colormap
     cmap = plt.cm.Blues_r.copy()
     cmap.set_under("white")  # for values < 1
     cmap.set_bad("white")
     # Normalization: only 1–100 use the colormap
-    norm = colors.LogNorm(vmin=distr_min, vmax=distr_max, clip=False)
-    ax.imshow(
+    norm = colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max, clip=False)
+    scatter = ax.imshow(
         data_to_plt,
         norm=norm,
         cmap=cmap,
@@ -94,4 +95,5 @@ def scatter_plot_with_fit(
     ax.set_ylim(10, 95)
     ax.set_xlim(0, 100)
     ax.grid(True)
+    plt.colorbar(scatter)
     return fig, ax

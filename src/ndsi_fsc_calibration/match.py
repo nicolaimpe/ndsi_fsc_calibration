@@ -23,7 +23,7 @@ class Scatter:
     def time_step_analysis(self, dataset: xr.Dataset, bins_dict: Dict[str, xr.groupers.Grouper]):
         logger.info(f"Processing time of the year {dataset.coords['time'].values[0].astype('M8[D]').astype('O')}")
 
-        if self.eval_product in ("VNP10A1", "VJ110A1", "VJ210A1"):
+        if self.eval_product in ("VNP10A1", "VJ110A1", "VJ210A1", "MOD10A1"):
             quant_mask_test = dataset.data_vars["eval_ndsi"] < NASA_CLASSES["snow_cover"][-1]
             eval_prod_max_ndsi = NASA_CLASSES["snow_cover"][-1]
         else:
@@ -49,7 +49,6 @@ class Scatter:
             dataset.data_vars["eval_ndsi"].where(quantitative_mask_union) * 100 / eval_prod_max_ndsi
         )
         scatter = dataset.groupby(bins_dict).map(self.compute_occurrences)
-        print(scatter)
         return scatter
 
     def compute_occurrences(self, dataset: xr.Dataset):

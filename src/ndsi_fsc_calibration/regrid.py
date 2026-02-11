@@ -19,7 +19,7 @@ from geospatial_grid.gsgrid import GSGrid
 from geospatial_grid.reprojections import reproject_using_grid
 from rasterio.enums import Resampling
 
-from ndsi_fsc_calibration.snow_cover_products import NASA_CLASSES, S2_CLASSES
+from ndsi_fsc_calibration.snow_cover_products import NASA_CLASSES, S2_CLASSES, open_modis_ndsi_snow_cover
 from ndsi_fsc_calibration.utils import default_logger as logger
 from ndsi_fsc_calibration.utils import gdf_to_binary_mask, generate_xarray_compression_encodings
 
@@ -50,7 +50,6 @@ def resample_s2_to_grid(s2_dataset: xr.Dataset, output_grid: GSGrid) -> xr.DataA
 def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GSGrid) -> xr.DataArray:
     # Validity "zombie mask": wherever there is at least one non valid pixel, the output grid pixel is set as invalid (<-> cloud)
     # nasa_dataset = nasa_dataset.where(nasa_dataset <= NASA_CLASSES["snow_cover"][-1], NASA_CLASSES["fill"][0])
-
     resampled_max = reproject_using_grid(
         nasa_snow_cover,
         output_grid=output_grid,
@@ -58,10 +57,10 @@ def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GSG
         nodata=NASA_CLASSES["fill"][0],
     )
 
-    resampled_average = reproject_using_grid(
+    resampled_bilinear = reproject_using_grid(
         nasa_snow_cover,
         output_grid=output_grid,
-        resampling_method=Resampling.average,
+        resampling_method=Resampling.bilinear,
     )
 
     resampled_nearest = reproject_using_grid(
@@ -73,8 +72,8 @@ def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GSG
     invalid_mask = resampled_max > NASA_CLASSES["snow_cover"][-1]
     water_mask = resampled_nearest == NASA_CLASSES["water"][0] | NASA_CLASSES["water"][1]
     valid_qualitative_mask = water_mask
-
-    out_snow_cover = resampled_average.where(invalid_mask == False, resampled_max)
+    invalid_mask.to_netcdf("invalid_mask.nc")
+    out_snow_cover = resampled_bilinear.where(invalid_mask == False, resampled_max)
     # We readd water resempled with nearest
     out_snow_cover = out_snow_cover.where(valid_qualitative_mask == False, resampled_nearest)
 
@@ -155,14 +154,14 @@ class RegridBase:
         for date in period:
             logger.info(f"Processing date {date}")
 
-            day_files = self.get_date_files(files, date=date)
+            date_files = self.get_date_files(files, date=date)
 
-            day_files = self.check_date_files(date_files=day_files)
+            date_files = self.check_date_files(date_files=date_files)
 
-            if len(day_files) == 0:
+            if len(date_files) == 0:
                 logger.info(f"Skip day {date} because 0 files were found on this date")
                 continue
-            daily_composite = self.create_spatial_composite(date_files=day_files)
+            daily_composite = self.create_spatial_composite(date_files=date_files)
             if roi_shapefile is not None:
                 roi_mask = gdf_to_binary_mask(gdf=gpd.read_file(roi_shapefile), grid=self.grid)
 
@@ -231,7 +230,7 @@ class S2TheiaRegrid(S2Regrid):
         return georef_netcdf_rioxarray(day_dataset, crs=self.grid.crs)
 
 
-class V10Regrid(RegridBase):
+class V10A1Regrid(RegridBase):
     def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
         super().__init__(
             output_grid=output_grid, data_folder=data_folder, output_folder=output_folder, product_classes=NASA_CLASSES
@@ -293,5 +292,49 @@ class V10Regrid(RegridBase):
         daily_spatial_composite = self.create_spatial_l3_nasa_viirs_composite(daily_snow_cover_files=date_files)
         nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         nasa_snow_cover.attrs.pop("valid_range")
+        out_dataset = xr.Dataset({"NDSI_Snow_Cover": nasa_snow_cover})
+        return out_dataset
+
+
+class MOD10A1Regrid(RegridBase):
+    def __init__(self, output_grid: GSGrid, data_folder: str, output_folder: str):
+        super().__init__(
+            output_grid=output_grid, data_folder=data_folder, output_folder=output_folder, product_classes=NASA_CLASSES
+        )
+
+    def get_date_files(self, all_winter_year_files: List[str], date: datetime) -> List[str]:
+        return [file for file in all_winter_year_files if date.strftime("A%Y%j") in file]
+
+    def get_all_files(self) -> List[str]:
+        return glob(str(Path(self.data_folder).joinpath("MOD10A1*.hdf")))
+
+    def check_date_files(self, date_files: List[str]) -> List[str]:
+        for date_file in date_files:
+            try:
+                open_modis_ndsi_snow_cover(date_file).values
+            except OSError:
+                logger.info(f"Could not open file {date_file}. Removing it from processing")
+                date_files.remove(date_file)
+                continue
+        return date_files
+
+    def create_spatial_l3_nasa_modis_composite(self, daily_snow_cover_files: List[str]) -> xr.DataArray:
+        day_data_arrays = []
+        for filepath in daily_snow_cover_files:
+            # try:
+            logger.info(f"Processing product {Path(filepath).name}")
+            day_data_arrays.append(open_modis_ndsi_snow_cover(filepath))
+
+        merged_day_dataset = (
+            xr.combine_by_coords(day_data_arrays, data_vars="minimal", fill_value=NASA_CLASSES["fill"][0])
+            .astype(np.uint8)
+            .data_vars["NDSI_Snow_Cover"]
+        ).rio.write_nodata(NASA_CLASSES["fill"][0])
+
+        return merged_day_dataset
+
+    def create_spatial_composite(self, date_files: List[str]) -> xr.Dataset:
+        daily_spatial_composite = self.create_spatial_l3_nasa_modis_composite(daily_snow_cover_files=date_files)
+        nasa_snow_cover = reprojection_l3_nasa_to_grid(nasa_snow_cover=daily_spatial_composite, output_grid=self.grid)
         out_dataset = xr.Dataset({"NDSI_Snow_Cover": nasa_snow_cover})
         return out_dataset

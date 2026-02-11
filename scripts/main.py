@@ -15,7 +15,8 @@ from pyproj import CRS, Transformer
 
 from ndsi_fsc_calibration.download import download_s2_fsc_pyhydroweb
 from ndsi_fsc_calibration.match import Scatter
-from ndsi_fsc_calibration.regrid import S2TheiaRegrid, V10Regrid
+from ndsi_fsc_calibration.regrid import MOD10A1Regrid, S2TheiaRegrid, V10A1Regrid
+from ndsi_fsc_calibration.snow_cover_products import get_modis_bin_size
 from ndsi_fsc_calibration.utils import find_aoi_bounds, gdf_to_binary_mask
 from ndsi_fsc_calibration.visualization import scatter_plot_with_fit
 
@@ -49,7 +50,7 @@ def parse_arguments(args):
     parser.add_argument("-pf", "--nasa_folder", help=help_eval_prod_dir, type=str, default=None)
     parser.add_argument("-of", "--output_folder", help=help_output_dir, type=str, default="./output_folder")
     parser.add_argument("-rg", "--resampling_grid_file", help=help_resampling_grid_file, type=str, default=None)
-    parser.add_argument("--downlaod_s2", help=help_output_dir, action="store_true")
+    parser.add_argument("--download_s2", help=help_output_dir, action="store_true")
     parser.add_argument("--download_nasa", help=help_resampling_grid_file, action="store_true")
 
     args = parser.parse_args(args)
@@ -58,8 +59,8 @@ def parse_arguments(args):
 
 if __name__ == "__main__":
     args = parse_arguments(sys.argv[1:])
-    date_start = datetime.strftime(args.start_date, format="YYYYMMdd")
-    date_end = datetime.strftime(args.end_date, format="YYYYMMdd")
+    date_start = datetime.strptime(args.start_date, "%Y%m%d")
+    date_end = datetime.strptime(args.end_date, "%Y%m%d")
     aoi_bounds = find_aoi_bounds(args.aoi_file)
     prod_id = args.product_name
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     if args.download_nasa:
         logger.info(f"Download data for {args.product_name} to {args.nasa_folder}/{args.product_name} via NASA earthaccess")
         nasa_products = earthaccess.search_data(
-            short_name=args.product_name,  # ATLAS/ICESat-2 L3A Land Ice Height, VNP10?
+            short_name=args.product_name,
             bounding_box=aoi_bounds,  # Only include files in area of interest...
             temporal=(date_start, date_end),  # ...and time period of interest
             day_night_flag="day",
@@ -90,50 +91,61 @@ if __name__ == "__main__":
             output_grid = GSGrid(**grid_kwargs)
     else:
         logger.info(f"Creating a default resampling grid on {prod_id} SIN Grid using area of interest file.")
-        format = "hdf" if args.product_name == "MOD10A1" else "h5"
-        eval_prod_sample = glob.glob(f"{args.nasa_folder}/{args.product_name}/*.{format}")[0]
-        resolution = xr.open_dataset(eval_prod_sample, engine="netcdf4").attrs["CharacteristicBinSize"]
-        transformer = Transformer.from_crs(crs_from=CRS.from_epsg(43624), crs_to=CRS.from_proj4(PROJ4_MODIS), always_xy=True)
-        aoi_bounds_sin_grid = transformer.transform_bounds(*aoi_bounds)
+        if args.product_name == "MOD10A1":
+            eval_prod_sample = glob(f"{args.nasa_folder}/*.hdf")[0]
+            resolution = get_modis_bin_size(filepath=eval_prod_sample)
+        else:
+            eval_prod_sample = glob(f"{args.nasa_folder}/*.h5")[0]
+            resolution = xr.open_dataset(eval_prod_sample, engine="netcdf4").attrs["CharacteristicBinSize"]
 
+        transformer = Transformer.from_crs(crs_from=CRS.from_epsg(4326), crs_to=CRS.from_proj4(PROJ4_MODIS), always_xy=True)
+        aoi_bounds_sin_grid = transformer.transform_bounds(*aoi_bounds)
         output_grid = GSGrid(
-            x0=aoi_bounds_sin_grid[0] // resolution,
-            y0=aoi_bounds_sin_grid[3] // resolution + resolution,
+            x0=aoi_bounds_sin_grid[0] // resolution * resolution,
+            y0=aoi_bounds_sin_grid[3] // resolution * resolution,
             resolution=(resolution, resolution),
-            width=(aoi_bounds_sin_grid[2] - aoi_bounds_sin_grid[0]) / resolution,
-            height=(aoi_bounds_sin_grid[3] - aoi_bounds_sin_grid[1]) / resolution,
+            width=int((aoi_bounds_sin_grid[2] - aoi_bounds_sin_grid[0]) // resolution),
+            height=int((aoi_bounds_sin_grid[3] - aoi_bounds_sin_grid[1]) // resolution),
             crs=CRS.from_proj4(PROJ4_MODIS),
         )
 
-    vnp10a1_regridder = V10Regrid(
-        output_grid=output_grid,
-        data_folder=f"{args.nasa_folder}/{args.product_name}",
-        output_folder=f"output_folder/{prod_id.lower()}",
-    )
+    if prod_id in ("VNP10A1", "VJ110A1", "VJ210A1"):
+        eval_prod_regridder = V10A1Regrid(
+            output_grid=output_grid,
+            data_folder=f"{args.nasa_folder}",
+            output_folder=f"output_folder/{prod_id.lower()}",
+        )
+    elif prod_id == "MOD10A1":
+        eval_prod_regridder = MOD10A1Regrid(
+            output_grid=output_grid,
+            data_folder=f"{args.nasa_folder}",
+            output_folder=f"output_folder/{prod_id.lower()}",
+        )
     s2_regridder = S2TheiaRegrid(
         output_grid=output_grid, data_folder=f"{args.sentinel_2_folder}", output_folder="output_folder/s2"
     )
 
     logger.info(f"Regridding {prod_id} evaluation dataset on output grid.")
-    vnp10a1_regridder.create_time_series(
-        roi_shapefile=args.aoi_file,
-        start_date=date_start,
-        end_date=date_end,
-    )
-    logger.info("Regridding Sentinel-2 reference data on output grid.")
-    s2_regridder.create_time_series(
+    eval_prod_regridder.create_time_series(
         roi_shapefile=args.aoi_file,
         start_date=date_start,
         end_date=date_end,
     )
 
-    vnp10a1_regridded = xr.open_dataset(f"{args.output_folder}/{prod_id.lower()}/regridded.nc")
+    logger.info("Regridding Sentinel-2 reference data on output grid.")
+    # s2_regridder.create_time_series(
+    #     roi_shapefile=args.aoi_file,
+    #     start_date=date_start,
+    #     end_date=date_end,
+    # )
+
+    eval_prod_regridded = xr.open_dataset(f"{args.output_folder}/{prod_id.lower()}/regridded.nc")
     s2_regridded = xr.open_dataset(f"{args.output_folder}/s2/regridded.nc")
 
     logger.info(f"Compute individual correspondences between {prod_id} evaluation dataset and Sentinel-2 reference dataset")
     matcher = Scatter(eval_product=prod_id, ref_product="S2")
     matcher.compute_all_correspondences(
-        eval_ndsi_time_series=vnp10a1_regridded.data_vars["NDSI_Snow_Cover"],
+        eval_ndsi_time_series=eval_prod_regridded.data_vars["NDSI_Snow_Cover"],
         ref_fsc_time_series=s2_regridded.data_vars["snow_cover_fraction"],
         netcdf_export_path=f"{args.output_folder}/correspondences.nc",
     )
