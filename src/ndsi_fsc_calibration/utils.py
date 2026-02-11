@@ -5,6 +5,7 @@ import geopandas as gpd
 import xarray as xr
 from geospatial_grid.georeferencing import georef_netcdf_rioxarray
 from geospatial_grid.gsgrid import GSGrid
+from pyproj import CRS, Transformer
 from rasterio.features import rasterize
 
 # Module configuration
@@ -48,3 +49,9 @@ def generate_xarray_compression_encodings(data: xr.Dataset | xr.DataArray, compr
     elif type(data) is xr.DataArray:
         output_dict.update({data.name: compression_encoding_dict})
     return output_dict
+
+
+def find_aoi_bounds(aoi_vectorial_file: str):
+    gdf = gpd.read_file(aoi_vectorial_file)
+    transformer = Transformer.from_crs(crs_from=gdf.crs, crs_to=CRS.from_epsg(4326), always_xy=True)
+    return transformer.transform_bounds(*gdf.union_all().bounds)
