@@ -3,13 +3,12 @@ import re
 import numpy as np
 import pyproj
 import xarray as xr
-from affine import Affine
 from geospatial_grid.georeferencing import georef_netcdf_rioxarray
 from geospatial_grid.grid_database import PROJ4_MODIS
 from geospatial_grid.gsgrid import GSGrid
 from pyhdf.SD import SD, SDC
-from pyproj import CRS
 
+# NASA snow cover products meaning-value correspondences(see VNP10A1 product documentation)
 NASA_CLASSES = {
     "snow_cover": range(1, 101),
     "no_snow": (0,),
@@ -38,6 +37,7 @@ S2_CLASSES = {"snow_cover": range(1, 101), "no_snow": (0,), "clouds": (205,), "n
 
 
 def get_modis_bin_size(filepath: str) -> float:
+    """Find MOD10A1 resolution from product metadata"""
     hdf = SD(filepath, SDC.READ)
     fattrs = hdf.attributes(full=1)
     ga = fattrs["ArchiveMetadata.0"]
@@ -50,6 +50,7 @@ def get_modis_bin_size(filepath: str) -> float:
 
 
 def open_modis_ndsi_snow_cover(filepath: str) -> xr.DataArray:
+    """Open a MOD10A1 hdf on a georeferenced xarray. Georeferencing data are read from metadata."""
     DATAFIELD_NAME = "NDSI_Snow_Cover"
 
     hdf = SD(filepath, SDC.READ)

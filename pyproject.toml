@@ -15,8 +15,9 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "geospatial_grid @ git+ssh://git@github.com/nicolaimpe/geospatial_grid@0.1.0",
     "pyhdf>=0.11.6",
-    "earthaccess>=0.14.0",
-    "gdal>=3.4.1",
+    "earthaccess>=0.16.0",
+    "py-hydroweb>=1.1.0",
+    "matplotlib>=3.10.8",
     ]
     
 requires-python = ">=3.11"

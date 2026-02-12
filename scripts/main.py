@@ -58,6 +58,7 @@ def parse_arguments(args):
 
 
 if __name__ == "__main__":
+    ### Treat user inputs
     args = parse_arguments(sys.argv[1:])
     date_start = datetime.strptime(args.start_date, "%Y%m%d")
     date_end = datetime.strptime(args.end_date, "%Y%m%d")
@@ -67,8 +68,9 @@ if __name__ == "__main__":
     if prod_id not in ("VNP10A1", "VJ110A1", "VJ210A1", "MOD10A1"):
         raise NotImplementedError(f"Unknkown product name {prod_id}")
 
+    ### Download NASA and Sentinel-2 products
     if args.download_nasa:
-        logger.info(f"Download data for {args.product_name} to {args.nasa_folder}/{args.product_name} via NASA earthaccess")
+        logger.info(f"Download data for {args.product_name} to {args.nasa_folder} via NASA earthaccess")
         nasa_products = earthaccess.search_data(
             short_name=args.product_name,
             bounding_box=aoi_bounds,  # Only include files in area of interest...
@@ -76,7 +78,7 @@ if __name__ == "__main__":
             day_night_flag="day",
         )
 
-        files = earthaccess.download(nasa_products, f"{args.nasa_folder}/{args.product_name}")
+        files = earthaccess.download(nasa_products, f"{args.nasa_folder}")
 
     if args.download_s2:
         logger.info(f"Download data for Sentinel-2 snow cover fraction to {args.sentinel_2_folder} via PyHydroweb API")
@@ -84,6 +86,7 @@ if __name__ == "__main__":
             start_date=date_start, end_date=date_end, bounding_box=aoi_bounds, download_folder=args.sentinel_2_folder
         )
 
+    ### Create the resampling grid
     if args.resampling_grid_file:
         logger.info(f"Creating a resampling grid with the user input grid configuration file {args.resampling_grid_file}")
         with open(args.resampling_grid_file, "r") as src:
@@ -109,6 +112,7 @@ if __name__ == "__main__":
             crs=CRS.from_proj4(PROJ4_MODIS),
         )
 
+    ### Regrid (NASA) and Sentinel-2 on the grid previously
     if prod_id in ("VNP10A1", "VJ110A1", "VJ210A1"):
         eval_prod_regridder = V10A1Regrid(
             output_grid=output_grid,
@@ -133,15 +137,16 @@ if __name__ == "__main__":
     )
 
     logger.info("Regridding Sentinel-2 reference data on output grid.")
-    # s2_regridder.create_time_series(
-    #     roi_shapefile=args.aoi_file,
-    #     start_date=date_start,
-    #     end_date=date_end,
-    # )
+    s2_regridder.create_time_series(
+        roi_shapefile=args.aoi_file,
+        start_date=date_start,
+        end_date=date_end,
+    )
 
     eval_prod_regridded = xr.open_dataset(f"{args.output_folder}/{prod_id.lower()}/regridded.nc")
     s2_regridded = xr.open_dataset(f"{args.output_folder}/s2/regridded.nc")
 
+    ### Match evaluated (NASA) and reference products: compute number of correspondences for each (NDSI, FSC) pair
     logger.info(f"Compute individual correspondences between {prod_id} evaluation dataset and Sentinel-2 reference dataset")
     matcher = Scatter(eval_product=prod_id, ref_product="S2")
     matcher.compute_all_correspondences(
@@ -154,6 +159,7 @@ if __name__ == "__main__":
     correspondence_dataset = xr.open_dataset(f"{args.output_folder}/correspondences.nc")
     fig, ax = plt.subplots()
 
+    ### Visualiza results on a scatter plot and fit a linear model
     fig, ax = scatter_plot_with_fit(
         data_to_plt=correspondence_dataset.sum(dim="time").data_vars["n_occurrences"],
         fig=fig,
@@ -163,7 +169,7 @@ if __name__ == "__main__":
         quantile_min=0.2,
     )
 
-    fig.patch.set_alpha(0.0)
+    # fig.patch.set_alpha(0.0)
     logger.info(f"Exporting to {args.output_folder}/scatter_plot.png")
-    fig.savefig(f"{args.output_folder}/scatter_plot.png", format="png", dpi=600)
+    fig.savefig(f"{args.output_folder}/plots/scatter_plot.png", format="png", dpi=600)
     plt.show()

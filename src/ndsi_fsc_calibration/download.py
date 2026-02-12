@@ -1,3 +1,10 @@
+import logging
+import sys
+import zipfile
+from datetime import datetime
+from importlib.metadata import version
+from typing import Tuple
+
 help_message = """
 Download products from your hydroweb.next projects (https://hydroweb.next.theia-land.fr) using the py-hydroweb lib (https://pypi.org/project/py-hydroweb/)
 This script is an example tuned for your last hydroweb.next project but feel free to adapt it for future requests.
@@ -12,13 +19,6 @@ Follow these steps:
 
 For more documentation about how to use the py-hydroweb lib, please refer to https://pypi.org/project/py-hydroweb/.
 """
-
-import logging
-import sys
-import zipfile
-from datetime import datetime
-from importlib.metadata import version
-from typing import Tuple
 
 
 def download_s2_fsc_pyhydroweb(
