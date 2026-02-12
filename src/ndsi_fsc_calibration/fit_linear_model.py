@@ -1,9 +1,19 @@
+from typing import Tuple
+
 import numpy as np
 import xarray as xr
 from sklearn.linear_model import LinearRegression
 
 
 def compute_correlation_coefficient_from_weights(weights: xr.DataArray) -> float:
+    """Compute Pearson correlation coefficient for a discrete (X,Y) dataset of the number of occurrences for each x,y pair.
+
+    Args:
+        weights (xr.DataArray): array with X,Y as coordinates and number of occurrences as values
+
+    Returns:
+        float: the Pearson correlation coefficient
+    """
     i = np.arange(weights.sizes["ndsi"])  # X values
     j = np.arange(weights.sizes["fsc"])  # Y values
 
@@ -22,7 +32,15 @@ def compute_correlation_coefficient_from_weights(weights: xr.DataArray) -> float
     return r
 
 
-def fit_regression(data_to_fit: xr.DataArray):
+def fit_regression(data_to_fit: xr.DataArray) -> Tuple[float, float, float]:
+    """Fit a linear regression model for a discrete (X,Y) dataset of the number of occurrences for each x,y pair.
+
+    Args:
+        data_to_fit (xr.DataArray): array with X,Y as coordinates and number of occurrences as values
+
+    Returns:
+        Tuple[float, float, float]: linear model slope, intercept and R**2 score
+    """
     xx, yy = np.meshgrid(data_to_fit.coords["ndsi"].values, data_to_fit.coords["fsc"].values)
     model_x_data = xx.reshape((-1, 1))
     model_y_data = yy.reshape((-1, 1))

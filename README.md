@@ -1,6 +1,6 @@
 # ndsi_fsc_calibration
 
-![Example scatter plot with fit](./output_folder/plots/scatter_plot.png) 
+![Example scatter plot with fit](./output_folder/plots/scatter_plot_example.png) 
 
 ## Description
 Tool to automize moderate resolution satellite snow cover products (VIIRS, MODIS) characterization using Sentinel-2 as reference. Visualize agreement between NDSI computed from MODIS and VIIRS vs the referFit a linear model for Normalized Snow Index (NDSI) to Fractional Snow Cover (FSC) for moderate resolution sensors using Sentinel-2 as high resolution reference.
@@ -23,6 +23,10 @@ Intermediate products are saved in the user defined output folder:
 `<output_folder>/<product_id>/regridded.nc` : Time series of the avaluated product on the evaluation grid (i.e. resolution of at least MODIS/VIIRS)
 
 `<output_folder>/correspondences.nc` : array of the number of correspondences for each combination of <product_id> NDSI and reference Sentinel-2 FSC for each time step 
+
+The processing is illustrated in this flow chart:
+
+![Pipeline](./data/illustrations/data_flow_illustration.png) 
 
 ```bash
 $ tree
