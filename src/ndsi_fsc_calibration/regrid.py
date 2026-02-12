@@ -71,7 +71,6 @@ def reprojection_l3_nasa_to_grid(nasa_snow_cover: xr.DataArray, output_grid: GSG
     invalid_mask = resampled_max > NASA_CLASSES["snow_cover"][-1]
     water_mask = resampled_nearest == NASA_CLASSES["water"][0] | NASA_CLASSES["water"][1]
     valid_qualitative_mask = water_mask
-    invalid_mask.to_netcdf("invalid_mask.nc")
     out_snow_cover = resampled_bilinear.where(invalid_mask == False, resampled_max)
     # We readd water resempled with nearest
     out_snow_cover = out_snow_cover.where(valid_qualitative_mask == False, resampled_nearest)

@@ -17,14 +17,14 @@ python scripts/main.py \
 # Launch main on the French Alps between 1/12/2023 and 1/1/2024 for MOD10A1 (MODIS Terra snow cover product) 
 # without triggering automatic download -> source data are assumed to be already available in sentinel_2_folder and nasa_folder
 
-python scripts/main.py \
---start_date 20231201 \
---end_date 20240101 \
---aoi_file ./data/aoi_files/alpes_bbox.shp \
---product_name MOD10A1 \
---sentinel_2_folder ./data/S2_THEIA/ \
---nasa_folder ./data/MOD10A1/ \
---output_folder ./output_folder/ 
+# python scripts/main.py \
+# --start_date 20231201 \
+# --end_date 20240101 \
+# --aoi_file ./data/aoi_files/alpes_bbox.shp \
+# --product_name MOD10A1 \
+# --sentinel_2_folder ./data/S2_THEIA/ \
+# --nasa_folder ./data/MOD10A1/ \
+# --output_folder ./output_folder/ 
 
 
 # Launch main on the French Alps between 1/12/2023 and 1/1/2024 for VNP10A1 (VIIRS SNPP snow cover product) 
