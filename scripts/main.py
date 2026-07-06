@@ -70,6 +70,7 @@ if __name__ == "__main__":
 
     ### Download NASA and Sentinel-2 products
     if args.download_nasa:
+        earthaccess.login()
         logger.info(f"Download data for {args.product_name} to {args.nasa_folder} via NASA earthaccess")
         nasa_products = earthaccess.search_data(
             short_name=args.product_name,

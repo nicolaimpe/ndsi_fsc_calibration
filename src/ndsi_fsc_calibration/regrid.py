@@ -134,7 +134,7 @@ class RegridBase:
     def __init__(self, data_folder: str, output_folder: str, output_grid: GSGrid, product_classes: Dict[str, int | range]):
         self.grid = output_grid
         if not os.path.exists(output_folder):
-            os.mkdir(output_folder)
+            os.makedirs(output_folder)
         self.data_folder = data_folder
         self.output_folder = output_folder
         self.product_classes = product_classes
@@ -272,7 +272,6 @@ class RegridBase:
         Returns:
             xr.Dataset: Combined time series dataset.
         """
-
         files = self.get_all_files()
         period = pd.date_range(start=start_date, end=end_date)
         for date in period:
@@ -302,10 +301,9 @@ class RegridBase:
 
             if self.scf_empty(daily_composite):
                 logger.info(f"Skip day {date} because only clouds are present on this date.")
-                continue
+                # continue
             if low_value_thresholds is not None:
                 daily_composite = self.low_values_screen(daily_composite=daily_composite, thresholds=low_value_thresholds)
-
             self.export_date_data(date=date, date_data=daily_composite)
         return self.export_time_series()
 

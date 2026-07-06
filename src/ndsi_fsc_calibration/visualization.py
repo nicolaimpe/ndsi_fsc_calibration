@@ -24,6 +24,8 @@ def scatter_plot_with_fit(
     ax: Axes,
     quantile_min: float = 0.2,
     quantile_max: float = 0.9,
+    fsc_min: int = 0,
+    fsc_max: int = 100,
 ) -> Tuple[Figure, Axes]:
     """Generate a scatter plot of NDSI, FSC correspondences and display a linear fit together with Salomonson and Appel fit.
 
@@ -31,7 +33,7 @@ def scatter_plot_with_fit(
         data (xr.DataArray): array of the (NDSI, FSC) correspondences generated using match.Scatter
         eval_prod_name (str): evaluation product identifier (ex. VNP10A1) to print in the plot
         fig (Figure): a matplolib figure
-        ax (Axes): a matplolib axes
+        # ax (Axes): a matplolib axes
         quantile_min (float, optional): minimum quantile to normalize the colramp for enhanced visualization. Defaults to 0.2.
         quantile_max (float, optional): maximum quantile to normalize the colramp for enhanced visualization. Defaults to 0.9.
 
@@ -39,7 +41,7 @@ def scatter_plot_with_fit(
         Tuple[Figure, Axes]: the output plotting objects for further work or export
     """
     data_to_plt = data.transpose("fsc", "ndsi")
-
+    data_to_plt = data_to_plt.sel(fsc=slice(fsc_min, fsc_max))
     coeff_slope_ndsi, intercept_ndsi, score = fit_regression(data_to_plt)
     # Invert model to draw regression
     coeff_slope = 1 / coeff_slope_ndsi
@@ -59,7 +61,7 @@ def scatter_plot_with_fit(
     )
 
     regression_x_axis = np.arange(0, 100)
-    pearson_corr_coeff = compute_correlation_coefficient_from_weights(data_to_plt)
+    # pearson_corr_coeff = compute_correlation_coefficient_from_weights(data_to_plt)
 
     ax.plot(
         regression_x_axis,
@@ -67,7 +69,7 @@ def scatter_plot_with_fit(
         ":",
         lw=1.5,
         color="chocolate",
-        label=f"Linear fit slope={float(coeff_slope):.2f},intercept={float(intercept):.2f}, R²={score:.2f}, r={pearson_corr_coeff:.2f} ",
+        label=f"Linear fit slope={float(coeff_slope):.2f},intercept={float(intercept):.2f}, R²={score:.2f} ",
     )
     xax = data_to_plt.coords["fsc"].values
     ax.plot(xax, salomonson_appel(xax), color="chocolate", linewidth=1.5, label="(Salomonson and Appel, 2006)")
