@@ -42,6 +42,7 @@ def scatter_plot_with_fit(
     """
     data_to_plt = data.transpose("fsc", "ndsi")
     data_to_plt = data_to_plt.sel(fsc=slice(fsc_min, fsc_max))
+    data_to_plt = data_to_plt.assign_coords({"fsc": data_to_plt.coords["fsc"] / 100, "ndsi": data_to_plt.coords["ndsi"] / 100})
     coeff_slope_ndsi, intercept_ndsi, score = fit_regression(data_to_plt)
     # Invert model to draw regression
     coeff_slope = 1 / coeff_slope_ndsi
@@ -49,18 +50,21 @@ def scatter_plot_with_fit(
     distr_min, distr_max = np.quantile(data_to_plt, quantile_min), np.quantile(data_to_plt, quantile_max)
 
     # Create colormap
-    cmap = plt.cm.Blues_r.copy()
-    cmap.set_under("white")  # for values < 1
-    cmap.set_bad("white")
+    cmap = plt.cm.bone.copy()
+    cmap.set_under("black")  # for values < 1
+    cmap.set_bad("black")
     # Normalization: only 1–100 use the colormap
     norm = colors.LogNorm(vmin=distr_min if distr_min > 0 else 1, vmax=distr_max, clip=False)
-    scatter = ax.imshow(
+    xx, yy = np.meshgrid(data_to_plt.coords["ndsi"], data_to_plt["fsc"])
+    scatter = ax.pcolormesh(
+        xx,
+        yy,
         data_to_plt,
         norm=norm,
         cmap=cmap,
     )
 
-    regression_x_axis = np.arange(0, 100)
+    regression_x_axis = np.arange(0, 1, 0.01)
     # pearson_corr_coeff = compute_correlation_coefficient_from_weights(data_to_plt)
 
     ax.plot(
@@ -71,16 +75,28 @@ def scatter_plot_with_fit(
         color="chocolate",
         label=f"Linear fit slope={float(coeff_slope):.2f},intercept={float(intercept):.2f}, R²={score:.2f} ",
     )
-    xax = data_to_plt.coords["fsc"].values
-    ax.plot(xax, salomonson_appel(xax), color="chocolate", linewidth=1.5, label="(Salomonson and Appel, 2006)")
+    # xax = data_to_plt.coords["fsc"].values / 100
+    ax.plot(
+        regression_x_axis,
+        salomonson_appel(regression_x_axis),
+        color="chocolate",
+        linewidth=1.5,
+        label="(Salomonson and Appel, 2006)",
+    )
 
     ax.grid(False)
-    ax.legend(loc="lower center", draggable=True)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), draggable=True, fontsize=12)
 
-    ax.set_ylabel("S2 FSC [%]")
-    ax.set_xlabel(f"{eval_prod_name} NDSI [%]")
-    ax.set_ylim(10, 95)
-    ax.set_xlim(0, 100)
+    ax.set_ylabel("S2 FSC")
+    ax.set_xlabel(f"{eval_prod_name} NDSI")
+    # ax.set_yticks(np.arange(np.ceil(fsc_min / 10) * 10, 100, 10))
+    ax.set_ylim(fsc_min / 100, fsc_max / 100)
+    ax.set_xlim(0, 1)
     ax.grid(True)
-    plt.colorbar(scatter)
+    # fig.colorbar(scatter)
+    cbar = fig.colorbar(scatter, extend="max")
+    cbar_ticks = np.array([1e1, 1e2])
+    cbar_labels = [f"{tick:n}" for tick in cbar_ticks]
+    cbar.set_ticks(cbar_ticks, labels=cbar_labels)
+    cbar.ax.set_ylabel("# of matches", rotation=270)
     return fig, ax
